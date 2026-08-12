@@ -1,0 +1,56 @@
+model_list:
+  - model_name: free
+    litellm_params: &deepseek
+      model: openai/oc/deepseek-v4-flash-free
+      api_base: http://9router:20128/v1
+      api_key: os.environ/ROUTER_API_KEY
+  - model_name: free
+    litellm_params: &free
+      model: openai/free
+      api_base: http://9router:20128/v1
+      api_key: os.environ/ROUTER_API_KEY
+
+  - model_name: coder
+    litellm_params: *deepseek
+  - model_name: coder
+    litellm_params: *free
+
+  - model_name: smart
+    litellm_params:
+      model: openai/google/gemini-2.5-pro
+      api_base: http://9router:20128/v1
+      api_key: os.environ/ROUTER_API_KEY
+  - model_name: smart
+    litellm_params: *deepseek
+
+  - model_name: fast
+    litellm_params: *deepseek
+  - model_name: fast
+    litellm_params: *free
+
+  - model_name: ultra
+    litellm_params:
+      model: openai/anthropic/claude-sonnet-4
+      api_base: http://9router:20128/v1
+      api_key: os.environ/ROUTER_API_KEY
+  - model_name: ultra
+    litellm_params:
+      model: openai/google/gemini-2.5-pro
+      api_base: http://9router:20128/v1
+      api_key: os.environ/ROUTER_API_KEY
+
+router_settings:
+  routing_strategy: simple-shuffle
+  num_retries: 1
+  allowed_fails: 1
+  cooldown_time: 300
+  timeout: 180
+  fallbacks:
+    - ultra: [smart]
+    - smart: [coder]
+    - coder: [free]
+    - fast: [free]
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+

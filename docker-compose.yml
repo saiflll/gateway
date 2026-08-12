@@ -1,0 +1,95 @@
+name: nyxgtw
+
+services:
+  headroom:
+    image: ghcr.io/chopratejas/headroom:latest
+    expose:
+      - "8787"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    networks: [gateway]
+
+  9router:
+    image: decolua/9router:latest
+    environment:
+      DATA_DIR: /app/data
+      PORT: "20128"
+      HOSTNAME: 0.0.0.0
+      NODE_ENV: production
+      HEADROOM_URL: http://headroom:8787
+      ROUTER_API_KEY: ${ROUTER_API_KEY:?set ROUTER_API_KEY in .env}
+    volumes:
+      - 9router-data:/app/data
+    ports:
+      - "127.0.0.1:20128:20128"
+    depends_on:
+      headroom:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:20128/v1/models').then(r=>{if(!r.ok)throw Error(r.status)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+    networks: [gateway]
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY in .env}
+      ROUTER_API_KEY: ${ROUTER_API_KEY:?set ROUTER_API_KEY in .env}
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml:ro
+    ports:
+      - "4000:4000"
+    depends_on:
+      9router:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+    networks: [gateway]
+
+  model-controller:
+    build: ./controller
+    environment:
+      CONTROLLER_TOKEN: ${CONTROLLER_TOKEN:?set CONTROLLER_TOKEN in .env}
+      DISABLE_TTL_SECONDS: ${DISABLE_TTL_SECONDS:-21600}
+      ROUTER_URL: http://9router:20128
+      HEADROOM_URL: http://headroom:8787
+      ROUTER_API_KEY: ${ROUTER_API_KEY:?set ROUTER_API_KEY in .env}
+      REGISTRY_PATH: /data/disabled-models.db
+    volumes:
+      - controller-data:/data
+    ports:
+      - "127.0.0.1:4010:4010"
+    depends_on:
+      9router:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4010/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+    networks: [gateway]
+
+volumes:
+  9router-data:
+  controller-data:
+
+networks:
+  gateway:
+    driver: bridge

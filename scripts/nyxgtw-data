@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+action="${1:-}"
+archive="${2:-nyxgtw-data-$(date -u +%Y%m%dT%H%M%SZ).tar.gz}"
+archive="$(realpath -m "$archive")"
+
+usage() {
+  echo "Usage: $0 export [archive.tar.gz] | import archive.tar.gz" >&2
+  exit 2
+}
+
+case "$action" in
+  export)
+    mkdir -p "$(dirname "$archive")"
+    echo "Stopping data writers for a consistent backup..."
+    docker compose stop litellm model-controller 9router
+    trap 'docker compose start 9router model-controller litellm >/dev/null' EXIT
+    docker run --rm \
+      -v nyxgtw_9router-data:/source/9router:ro \
+      -v nyxgtw_controller-data:/source/controller:ro \
+      -v "$(dirname "$archive"):/backup" \
+      alpine:3.22 tar -C /source -czf "/backup/$(basename "$archive")" 9router controller
+    echo "Backup written to $archive"
+    ;;
+  import)
+    [[ $# -eq 2 && -f "$archive" ]] || usage
+    echo "Stopping data writers and replacing nyxgtw persistent data..."
+    docker compose stop litellm model-controller 9router
+    trap 'docker compose start 9router model-controller litellm >/dev/null' EXIT
+    docker run --rm \
+      -v nyxgtw_9router-data:/restore/9router \
+      -v nyxgtw_controller-data:/restore/controller \
+      -v "$(dirname "$archive"):/backup:ro" \
+      alpine:3.22 sh -ceu '
+        find /restore/9router /restore/controller -mindepth 1 -delete
+        tar -C /restore -xzf "/backup/$1"
+      ' sh "$(basename "$archive")"
+    echo "Restore completed from $archive"
+    ;;
+  *) usage ;;
+esac
