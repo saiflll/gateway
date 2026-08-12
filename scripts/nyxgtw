@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+die() { echo "nyxgtw: $*" >&2; exit 1; }
+need() { command -v "$1" >/dev/null || die "command '$1' is required"; }
+
+load_env() {
+  [[ -f .env ]] || die ".env is missing; run: cp .env.example .env"
+  set -a
+  # .env is an operator-controlled shell-compatible file.
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+  for name in LITELLM_MASTER_KEY ROUTER_API_KEY CONTROLLER_TOKEN; do
+    [[ -n "${!name:-}" ]] || die "$name is empty in .env"
+  done
+  [[ "$LITELLM_MASTER_KEY" != sk-change-me ]] || die "replace LITELLM_MASTER_KEY placeholder"
+  [[ "$ROUTER_API_KEY" != sk-router-change-me ]] || die "replace ROUTER_API_KEY placeholder"
+  [[ "$CONTROLLER_TOKEN" != change-me ]] || die "replace CONTROLLER_TOKEN placeholder"
+}
+
+case "${1:-}" in
+  start)
+    need docker; load_env
+    docker compose config --quiet
+    docker compose pull
+    docker compose up -d --build
+    docker compose ps
+    ;;
+  stop) need docker; docker compose down ;;
+  status) need docker; docker compose ps ;;
+  logs) need docker; docker compose logs -f "${@:2}" ;;
+  check)
+    need curl; load_env
+    curl --fail --silent --show-error http://127.0.0.1:4010/health >/dev/null
+    curl --fail --silent --show-error http://127.0.0.1:4010/health/dependencies \
+      -H "X-Controller-Token: $CONTROLLER_TOKEN"
+    curl --fail --silent --show-error http://127.0.0.1:4000/health/liveliness \
+      -H "Authorization: Bearer $LITELLM_MASTER_KEY" >/dev/null
+    echo; echo "nyxgtw: controller, 9Router, Headroom, and LiteLLM are reachable"
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|status|logs [service]|check}" >&2
+    exit 2
+    ;;
+esac
