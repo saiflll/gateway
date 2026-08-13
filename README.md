@@ -36,9 +36,9 @@ Use `http://SERVER:4000/v1` as the public OpenAI-compatible API and supply `LITE
 | Headroom | 8787 | not published | internal compression; 9Router uses `http://headroom:8787` |
 | model-controller | 4010 | `127.0.0.1:4010` | health and model TTL control |
 
-Keep port 4000 behind a firewall or TLS reverse proxy in production. Change every placeholder in `.env`; never commit that file. `ROUTER_ADMIN_PASSWORD` initializes the 9Router dashboard password and lets the controller reach the protected disabled-model API. If the dashboard password is changed later, update this value and restart the controller. 9Router provider credentials and OAuth accounts remain managed by 9Router and persist in the `9router-data` volume.
+Keep port 4000 behind a firewall or TLS reverse proxy in production. Change every placeholder in `.env`; never commit that file. The stack does not inject a 9Router password, so a fresh installation uses the upstream default `123456`. Change it from the dashboard before exposing 9Router beyond localhost. 9Router provider credentials and OAuth accounts remain managed by 9Router and persist in the `9router-data` volume.
 
-After the first start, open `http://127.0.0.1:20128`, sign in with `ROUTER_ADMIN_PASSWORD`, configure provider accounts, and create an active 9Router API key. Put that generated key in `ROUTER_API_KEY`, then recreate `litellm` and `model-controller`. An arbitrary `sk-...` value is not automatically inserted into 9Router's API-key database.
+After the first start, open `http://127.0.0.1:20128`, sign in with `123456`, configure provider accounts, and create an active 9Router API key. Put that generated key in `ROUTER_API_KEY`, then recreate `litellm` and `model-controller`. An arbitrary `sk-...` value is not automatically inserted into 9Router's API-key database. The controller also assumes the upstream password while calling protected management APIs; if you change the dashboard password, optionally pass the matching `ROUTER_ADMIN_PASSWORD` only to `model-controller` through a local Compose override or secret manager.
 
 ## Paid-model controller
 

@@ -23,7 +23,6 @@ services:
       NODE_ENV: production
       HEADROOM_URL: http://headroom:8787
       ROUTER_API_KEY: ${ROUTER_API_KEY:?set ROUTER_API_KEY in .env}
-      INITIAL_PASSWORD: ${ROUTER_ADMIN_PASSWORD:?set ROUTER_ADMIN_PASSWORD in .env}
     volumes:
       - 9router-data:/app/data
     ports:
@@ -70,7 +69,6 @@ services:
       ROUTER_URL: http://9router:20128
       HEADROOM_URL: http://headroom:8787
       ROUTER_API_KEY: ${ROUTER_API_KEY:?set ROUTER_API_KEY in .env}
-      ROUTER_ADMIN_PASSWORD: ${ROUTER_ADMIN_PASSWORD:?set ROUTER_ADMIN_PASSWORD in .env}
       REGISTRY_PATH: /data/disabled-models.db
     volumes:
       - controller-data:/data

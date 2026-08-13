@@ -18,7 +18,7 @@ DEFAULT_TTL = int(os.getenv("DISABLE_TTL_SECONDS", "21600"))
 ROUTER_URL = os.getenv("ROUTER_URL", "http://9router:20128").rstrip("/")
 HEADROOM_URL = os.getenv("HEADROOM_URL", "http://headroom:8787").rstrip("/")
 ROUTER_API_KEY = os.getenv("ROUTER_API_KEY", "")
-ROUTER_ADMIN_PASSWORD = os.getenv("ROUTER_ADMIN_PASSWORD", "")
+ROUTER_ADMIN_PASSWORD = os.getenv("ROUTER_ADMIN_PASSWORD", "123456")
 REGISTRY_PATH = os.getenv("REGISTRY_PATH", "/data/disabled-models.db")
 
 
