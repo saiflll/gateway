@@ -19,10 +19,10 @@ The first phase uses the upstream `decolua/9router:latest` image unchanged. The 
 ```bash
 cp .env.example .env
 nano .env                    # replace every placeholder
-docker compose pull
-docker compose up -d --build
-docker compose ps
-docker compose logs -f
+wsl docker compose pull
+wsl docker compose up -d --build
+wsl docker compose ps
+wsl docker compose logs -f
 ```
 
 Use `http://SERVER:4000/v1` as the public OpenAI-compatible API and supply `LITELLM_MASTER_KEY` as its bearer token. Available logical model names are `free`, `coder`, `smart`, `fast`, and `ultra`. The concrete 9Router model aliases in `litellm-config.yaml` are initial examples; adjust them to models enabled by your configured provider accounts.
@@ -36,7 +36,9 @@ Use `http://SERVER:4000/v1` as the public OpenAI-compatible API and supply `LITE
 | Headroom | 8787 | not published | internal compression; 9Router uses `http://headroom:8787` |
 | model-controller | 4010 | `127.0.0.1:4010` | health and model TTL control |
 
-Keep port 4000 behind a firewall or TLS reverse proxy in production. Change all four values in `.env`; never commit that file. 9Router provider credentials and OAuth accounts remain managed by 9Router and persist in the `9router-data` volume.
+Keep port 4000 behind a firewall or TLS reverse proxy in production. Change every placeholder in `.env`; never commit that file. `ROUTER_ADMIN_PASSWORD` initializes the 9Router dashboard password and lets the controller reach the protected disabled-model API. If the dashboard password is changed later, update this value and restart the controller. 9Router provider credentials and OAuth accounts remain managed by 9Router and persist in the `9router-data` volume.
+
+After the first start, open `http://127.0.0.1:20128`, sign in with `ROUTER_ADMIN_PASSWORD`, configure provider accounts, and create an active 9Router API key. Put that generated key in `ROUTER_API_KEY`, then recreate `litellm` and `model-controller`. An arbitrary `sk-...` value is not automatically inserted into 9Router's API-key database.
 
 ## Paid-model controller
 
@@ -60,7 +62,7 @@ curl http://127.0.0.1:4010/health
 Validate configuration before launch:
 
 ```bash
-docker compose config
+wsl docker compose config
 python -m compileall controller
 ```
 

@@ -18,6 +18,7 @@ DEFAULT_TTL = int(os.getenv("DISABLE_TTL_SECONDS", "21600"))
 ROUTER_URL = os.getenv("ROUTER_URL", "http://9router:20128").rstrip("/")
 HEADROOM_URL = os.getenv("HEADROOM_URL", "http://headroom:8787").rstrip("/")
 ROUTER_API_KEY = os.getenv("ROUTER_API_KEY", "")
+ROUTER_ADMIN_PASSWORD = os.getenv("ROUTER_ADMIN_PASSWORD", "")
 REGISTRY_PATH = os.getenv("REGISTRY_PATH", "/data/disabled-models.db")
 
 
@@ -62,6 +63,23 @@ def router_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {ROUTER_API_KEY}"} if ROUTER_API_KEY else {}
 
 
+async def router_management_request(
+    client: httpx.AsyncClient, method: str, path: str, **kwargs: Any
+) -> httpx.Response:
+    """Call a protected 9Router API, establishing a dashboard session when needed."""
+    response = await client.request(
+        method, f"{ROUTER_URL}{path}", headers=router_headers(), **kwargs
+    )
+    if response.status_code != 401 or not ROUTER_ADMIN_PASSWORD:
+        return response
+
+    login = await client.post(
+        f"{ROUTER_URL}/api/auth/login", json={"password": ROUTER_ADMIN_PASSWORD}
+    )
+    login.raise_for_status()
+    return await client.request(method, f"{ROUTER_URL}{path}", **kwargs)
+
+
 async def sweep_expired(client: httpx.AsyncClient) -> dict[str, int]:
     now = time.time()
     with connect() as db:
@@ -71,12 +89,12 @@ async def sweep_expired(client: httpx.AsyncClient) -> dict[str, int]:
     enabled = 0
     failed = 0
     for provider_alias, model_id in rows:
-        url = (
-            f"{ROUTER_URL}/api/models/disabled?providerAlias={quote(provider_alias)}"
+        path = (
+            f"/api/models/disabled?providerAlias={quote(provider_alias)}"
             f"&id={quote(model_id)}"
         )
         try:
-            response = await client.delete(url, headers=router_headers())
+            response = await router_management_request(client, "DELETE", path)
             response.raise_for_status()
         except httpx.HTTPError:
             failed += 1
@@ -123,7 +141,7 @@ async def dependency_health() -> dict[str, Any]:
     """Prove both internal HTTP routes work; this does not mutate either service."""
     targets = {
         "9router": f"{ROUTER_URL}/v1/models",
-        "headroom": f"{HEADROOM_URL}/health",
+        "headroom": f"{HEADROOM_URL}/readyz",
     }
     results: dict[str, Any] = {}
     async with httpx.AsyncClient(timeout=5) as client:
@@ -175,9 +193,10 @@ async def report_failure(report: FailureReport) -> dict[str, Any]:
 
     ttl = report.ttl_seconds or DEFAULT_TTL
     async with httpx.AsyncClient(timeout=15) as client:
-        response = await client.post(
-            f"{ROUTER_URL}/api/models/disabled",
-            headers=router_headers(),
+        response = await router_management_request(
+            client,
+            "POST",
+            "/api/models/disabled",
             json={"providerAlias": report.provider_alias, "ids": [report.model_id]},
         )
     if response.is_error:
